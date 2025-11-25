@@ -163,7 +163,7 @@ def load_last_calibration(path="kalibrierung.json"):
 
 # -------------------- Streamlit Setup --------------------
 st.set_page_config(page_title="Zellkern-Zähler (Auto-Kalib) - Fixed", layout="wide")
-st.title("🧬 Zellkern-Zähler – Auto-Kalibrierung (AEC / Hämatoxylin) — korrigiert")
+st.title("🧬 Analysis of AEC / Hämatoxylin staining")
 
 # -------------------- Session State --------------------
 default_lists = [
