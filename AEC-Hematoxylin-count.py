@@ -4,10 +4,10 @@ import cv2
 import numpy as np
 from streamlit_image_coordinates import streamlit_image_coordinates
 import pandas as pd
-from PIL import Image
 import json
 from pathlib import Path
 from sklearn.cluster import DBSCAN  # sicherstellen, dass importiert ist
+from PIL import Image
 
 def apply_dbscan(points, eps, min_samples):
     """Cluster points with DBSCAN and ignore noise (label -1)."""
@@ -49,7 +49,8 @@ def get_centers(mask, min_area=50):
     mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
     mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
 
-    contours, _ = cv2.findContours(mask, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+    contours_info = cv2.findContours(mask, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+    contours = contours_info[0] if len(contours_info) == 2 else contours_info[1]
     centers = []
 
     for c in contours:
@@ -65,7 +66,7 @@ def get_centers(mask, min_area=50):
 
 
 def compute_hsv_range(points, hsv_img, radius=5):
-    """Robuste Median-basierte HSV-Range-Berechnung mit Wrap-Achtung für Hue."""
+    """Robuste Median-basierte HSV-Range-Berechnung mit zirkulärer Hue-Behandlung."""
     if not points:
         return None
     vals = []
@@ -84,7 +85,15 @@ def compute_hsv_range(points, hsv_img, radius=5):
     s = vals[:, 1].astype(int)
     v = vals[:, 2].astype(int)
 
-    h_med = float(np.median(h))
+    # zirkuläre Mittelung für Hue (Hue in OpenCV: 0..179 -> map to 0..360 by *2)
+    h_rad = h.astype(float) * (np.pi / 90.0)  # h * 2 degrees -> radians
+    sin_mean = np.mean(np.sin(h_rad))
+    cos_mean = np.mean(np.cos(h_rad))
+    mean_angle = np.arctan2(sin_mean, cos_mean)
+    if mean_angle < 0:
+        mean_angle += 2 * np.pi
+    h_med = float((np.degrees(mean_angle) / 2.0) % 180)
+
     s_med = float(np.median(s))
     v_med = float(np.median(v))
 
@@ -93,10 +102,8 @@ def compute_hsv_range(points, hsv_img, radius=5):
     tol_s = int(min(80, 30 + n_points * 10))
     tol_v = int(min(80, 30 + n_points * 10))
 
-    # Hue wrap aware
+    # adjust tolerance if distribution indicates wrap (optional safety)
     if np.mean(h) > 150 or np.mean(h) < 20:
-        h_adjusted = np.where(h < 90, h + 180, h)
-        h_med = float(np.median(h_adjusted) % 180)
         tol_h = min(40, tol_h + 5)
 
     h_min = int(round((h_med - tol_h) % 180))
@@ -156,9 +163,27 @@ def load_last_calibration(path="kalibrierung.json"):
     try:
         with open(path, "r") as f:
             data = json.load(f)
-        st.session_state.aec_hsv = np.array(data.get("aec_hsv")) if data.get("aec_hsv") else None
-        st.session_state.hema_hsv = np.array(data.get("hema_hsv")) if data.get("hema_hsv") else None
-        st.session_state.bg_hsv = np.array(data.get("bg_hsv")) if data.get("bg_hsv") else None
+        loaded_any = False
+        if data.get("aec_hsv"):
+            st.session_state.aec_hsv = np.array(data.get("aec_hsv"))
+            loaded_any = True
+        else:
+            st.session_state.aec_hsv = None
+        if data.get("hema_hsv"):
+            st.session_state.hema_hsv = np.array(data.get("hema_hsv"))
+            loaded_any = True
+        else:
+            st.session_state.hema_hsv = None
+        if data.get("bg_hsv"):
+            st.session_state.bg_hsv = np.array(data.get("bg_hsv"))
+            loaded_any = True
+        else:
+            st.session_state.bg_hsv = None
+
+        if loaded_any:
+            # trigger one auto-run so the masks/detections update immediately
+            st.session_state.last_auto_run = st.session_state.get("last_auto_run", 0) + 1
+
         st.success("✅ Letzte Kalibrierung geladen.")
     except FileNotFoundError:
         st.warning("⚠️ Keine gespeicherte Kalibrierung gefunden.")
