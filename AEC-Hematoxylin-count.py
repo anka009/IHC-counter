@@ -4,24 +4,29 @@ import cv2
 import numpy as np
 from streamlit_image_coordinates import streamlit_image_coordinates
 import pandas as pd
+from PIL import Image
 import json
 from pathlib import Path
 from sklearn.cluster import DBSCAN  # sicherstellen, dass importiert ist
 
 def apply_dbscan(points, eps, min_samples):
-    if len(points) == 0:
-        return points
-    pts = np.array(points)
-    db = DBSCAN(eps=eps, min_samples=min_samples).fit(pts)
+    """Cluster points with DBSCAN and ignore noise (label -1)."""
+    if not points:
+        return []
+    pts = np.array(points, dtype=float)
+    db = DBSCAN(eps=float(eps), min_samples=int(min_samples)).fit(pts)
     labels = db.labels_
     clustered = {}
     for lbl, p in zip(labels, pts):
+        if lbl == -1:
+            # ignore noise points
+            continue
         clustered.setdefault(lbl, []).append(p)
     out = []
     for plist in clustered.values():
         arr = np.array(plist)
         center = arr.mean(axis=0)
-        out.append((int(center[0]), int(center[1])))
+        out.append((int(round(center[0])), int(round(center[1]))))
     return out
 
 # -------------------- Hilfsfunktionen --------------------
