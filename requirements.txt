@@ -1,7 +1,6 @@
 streamlit==1.38.0
 streamlit-image-coordinates==0.1.7
 streamlit-drawable-canvas
-pillow==9.5.0
 tifffile
 numpy
 pandas
