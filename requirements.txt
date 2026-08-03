@@ -6,5 +6,4 @@ tifffile
 numpy
 pandas
 opencv-python-headless
-opencv-python
 scikit-learn
